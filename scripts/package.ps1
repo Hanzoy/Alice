@@ -36,6 +36,7 @@ Copy-Item -LiteralPath (Join-Path $ProjectRoot "start-alice.cmd") -Destination $
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "start-alice.ps1") -Destination $Stage
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "start-docker.cmd") -Destination $Stage
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "start-docker.ps1") -Destination $Stage
+Copy-Item -LiteralPath (Join-Path $ProjectRoot "docs") -Destination $Stage -Recurse
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "components") -Destination $Stage -Recurse
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "cmd") -Destination $Stage -Recurse
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "internal") -Destination $Stage -Recurse

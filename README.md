@@ -2,10 +2,19 @@
 
 Alice 是使用 Go 编写的组件化个人 AI 内核。所有输入、模型、记忆、Task、输出与动态能力均作为组件，由 Alice Core 根据不可变 Blueprint 创建私有 Execution 并编排运行。
 
+## 项目文档
+
+- [文档总览](docs/README.md)
+- [架构与设计决策](docs/ARCHITECTURE_AND_DECISIONS.md)
+- [当前实现状态与路线图](docs/IMPLEMENTATION_STATUS.md)
+- [家庭 Git 开发指南](docs/HOME_DEVELOPMENT.md)
+
+README 用于快速启动。产品边界、此前讨论形成的决策、已实现与未实现功能以 `docs` 中的文档为准。
+
 ## 默认架构
 
 ```text
-Web / 飞书 / 语音
+Web / 飞书（未来）/ 语音（未来）
         │
     Alice Core ───── PostgreSQL（权威数据）
         │
