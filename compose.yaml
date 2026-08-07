@@ -1,0 +1,112 @@
+name: alice
+
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: alice
+      POSTGRES_USER: alice
+      POSTGRES_PASSWORD: ${ALICE_POSTGRES_PASSWORD:-alice-local-password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alice -d alice"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - alice-postgres-data:/var/lib/postgresql
+    networks: [alice-internal]
+
+  qdrant:
+    image: qdrant/qdrant:v1.18.2
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${ALICE_QDRANT_API_KEY:-alice-local-qdrant-key}
+    volumes:
+      - alice-qdrant-data:/qdrant/storage
+    networks: [alice-internal]
+
+  ollama:
+    image: ollama/ollama:0.32.5
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - alice-ollama-data:/root/.ollama
+    networks: [alice-internal]
+
+  ollama-init:
+    image: ollama/ollama:0.32.5
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull qwen3-embedding:0.6b"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks: [alice-internal]
+
+  component-host:
+    build: .
+    restart: unless-stopped
+    command: ["/app/alice-component-host", "-addr", ":8090", "-components", "/app/components", "-data", "/app/data"]
+    environment:
+      ALICE_COMPONENT_HOST_TOKEN: ${ALICE_COMPONENT_HOST_TOKEN:-alice-local-component-token}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8090/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - ./components:/app/components
+      - alice-component-data:/app/data
+      - alice-component-cache:/app/.cache
+    networks: [alice-internal]
+
+  alice-core:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ALICE_HTTP_PORT:-8080}:8080"
+    environment:
+      ALICE_DATABASE_URL: postgres://alice:${ALICE_POSTGRES_PASSWORD:-alice-local-password}@postgres:5432/alice?sslmode=disable
+      ALICE_QDRANT_HOST: qdrant
+      ALICE_QDRANT_PORT: "6334"
+      ALICE_QDRANT_API_KEY: ${ALICE_QDRANT_API_KEY:-alice-local-qdrant-key}
+      ALICE_LLM_PROVIDER: deepseek
+      ALICE_LLM_BASE_URL: https://api.deepseek.com
+      ALICE_LLM_MODEL: deepseek-v4-flash
+      ALICE_LLM_THINKING_MODE: enabled
+      ALICE_LLM_REASONING_EFFORT: high
+      ALICE_EMBEDDING_BASE_URL: http://ollama:11434/v1
+      ALICE_EMBEDDING_MODEL: qwen3-embedding:0.6b
+      ALICE_COMPONENT_HOST_URL: http://component-host:8090
+      ALICE_COMPONENT_HOST_TOKEN: ${ALICE_COMPONENT_HOST_TOKEN:-alice-local-component-token}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
+      component-host:
+        condition: service_healthy
+    volumes:
+      - alice-core-data:/app/data
+    networks: [alice-internal]
+
+networks:
+  alice-internal:
+    driver: bridge
+
+volumes:
+  alice-postgres-data:
+  alice-qdrant-data:
+  alice-core-data:
+  alice-component-data:
+  alice-component-cache:
+  alice-ollama-data:

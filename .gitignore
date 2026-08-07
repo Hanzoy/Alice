@@ -1,0 +1,8 @@
+/data/
+/dist/
+/bin/
+/.cache/
+/.tools/
+*.exe
+*.test
+.env

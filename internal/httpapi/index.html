@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Alice Core</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --panel:#121a2d; --line:#263452; --text:#e7edf8; --muted:#91a0bb; --accent:#7c9cff; --ok:#5dd6a5; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:14px/1.5 ui-sans-serif,system-ui,"Microsoft YaHei"; background:radial-gradient(circle at top left,#172440,var(--bg) 45%); color:var(--text); }
+    header { padding:28px 32px 18px; display:flex; align-items:end; justify-content:space-between; }
+    h1 { margin:0; font-size:27px; letter-spacing:.02em; }
+    header p { margin:5px 0 0; color:var(--muted); }
+    .status { color:var(--ok); font-weight:700; }
+    main { padding:0 32px 40px; display:grid; grid-template-columns:minmax(340px,.9fr) minmax(480px,1.5fr); gap:18px; }
+    .panel { background:color-mix(in srgb,var(--panel) 94%,transparent); border:1px solid var(--line); border-radius:14px; padding:18px; box-shadow:0 14px 36px #0005; }
+    .stack { display:grid; gap:18px; align-content:start; }
+    h2 { margin:0 0 12px; font-size:16px; }
+    label { display:block; margin:10px 0 5px; color:var(--muted); }
+    textarea,input,select { width:100%; border:1px solid var(--line); background:#0c1426; color:var(--text); border-radius:8px; padding:10px; font:inherit; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    textarea { min-height:92px; resize:vertical; }
+    button { margin-top:10px; border:0; border-radius:8px; padding:9px 13px; background:var(--accent); color:#071021; font-weight:800; cursor:pointer; }
+    button.secondary { background:#263452; color:var(--text); }
+    pre { max-height:430px; overflow:auto; white-space:pre-wrap; word-break:break-word; background:#09101e; border:1px solid #1f2b45; border-radius:9px; padding:12px; color:#cbd7ef; }
+    .tabs { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:10px; }
+    .tabs button { margin:0; background:#1b2740; color:var(--muted); }
+    .tabs button.active { background:var(--accent); color:#071021; }
+    .reply { min-height:70px; border-left:3px solid var(--accent); padding:10px 12px; background:#0b1427; white-space:pre-wrap; }
+    .hint { color:var(--muted); font-size:12px; }
+    @media(max-width:900px){main{grid-template-columns:1fr}header{padding:22px 18px}main{padding:0 18px 30px}}
+  </style>
+</head>
+<body>
+  <header><div><h1>Alice Core</h1><p>组件化编排、PostgreSQL 记忆、Qdrant 召回与动态 Go 组件</p></div><div id="health" class="status">● connecting</div></header>
+  <main>
+    <div class="stack">
+      <section class="panel">
+        <h2>模型与 Embedding 设置</h2>
+        <div class="hint">对话能力固定使用 DeepSeek V4 官方 API。</div>
+        <label>DeepSeek Base URL</label>
+        <input id="modelBaseURL" value="https://api.deepseek.com" readonly>
+        <label>对话模型</label><select id="chatModel"><option value="deepseek-v4-flash">deepseek-v4-flash（速度/成本优先）</option><option value="deepseek-v4-pro">deepseek-v4-pro（能力优先）</option></select>
+        <div class="grid2">
+          <div><label>思考模式</label><select id="thinkingMode"><option value="enabled">启用</option><option value="disabled">关闭</option></select></div>
+          <div><label>思考强度</label><select id="reasoningEffort"><option value="high">high</option><option value="max">max</option></select></div>
+        </div>
+        <label>Embedding Base URL</label><input id="embeddingBaseURL" placeholder="http://ollama:11434/v1">
+        <label>Embedding 模型</label><input id="embeddingModel" placeholder="qwen3-embedding:0.6b">
+        <div class="hint">DeepSeek 只负责对话、事实提取与组件生成；事实向量仍由本地 Ollama 生成。</div>
+        <label>API Key</label>
+        <input id="modelAPIKey" type="password" autocomplete="new-password" placeholder="留空则保留已经保存的 Key">
+        <div class="actions"><button onclick="saveModelSettings()">保存并立即生效</button><button class="secondary" onclick="testModelSettings()">测试连接</button></div>
+        <div id="modelStatus" class="hint">正在读取设置……</div>
+        <div id="modelUsage" class="hint"></div>
+      </section>
+      <section class="panel">
+        <h2>与 Alice 对话</h2>
+        <textarea id="chatText" placeholder="例如：我不喜欢吃香菜"></textarea>
+        <button onclick="chat(false)">发送</button>
+        <div class="hint">默认蓝图会执行事实召回、模型交流和事实提取。</div>
+        <div id="chatReply" class="reply"></div>
+      </section>
+      <section class="panel">
+        <h2>直接与 Core Operator 对话</h2>
+        <textarea id="coreText" placeholder="例如：列出当前组件 / 查看最近的 Execution"></textarea>
+        <button onclick="chat(true)">查询 Core</button>
+        <div id="coreReply" class="reply"></div>
+      </section>
+      <section class="panel">
+        <h2>创建 Task</h2>
+        <input id="taskLabel" placeholder="任务输入，例如：提醒我检查净水器滤芯">
+        <label>触发方式</label>
+        <select id="taskTrigger"><option value="manual">手动触发</option><option value="at">10 秒后触发</option></select>
+        <label><input id="taskRemember" type="checkbox" style="width:auto"> 完成结果可形成事实</label>
+        <button onclick="createTask()">创建</button>
+      </section>
+      <section class="panel">
+        <h2>构建 Go 动态组件</h2>
+        <input id="sourceDir" value="components/uppercase">
+        <label><input id="activate" type="checkbox" checked style="width:auto"> 构建后立即激活</label>
+        <button onclick="buildComponent()">编译并注册</button>
+        <div id="buildResult" class="reply"></div>
+      </section>
+    </div>
+    <section class="panel">
+      <h2>Core 状态</h2>
+      <div class="tabs" id="tabs"></div>
+      <button class="secondary" onclick="refresh()">刷新</button>
+      <pre id="data"></pre>
+    </section>
+  </main>
+  <script>
+    const keys=['services','model_runtime','components','blueprints','executions','tasks','facts','events']; let active='services', snapshot={}, modelSettings={};
+    const $=id=>document.getElementById(id);
+    async function api(path, options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json'},...options});const j=await r.json();if(!r.ok)throw new Error(j.error||r.statusText);return j}
+    async function refresh(){try{snapshot=await api('/api/snapshot');$('health').textContent='● running';render();renderModelUsage()}catch(e){$('health').textContent='● unavailable';$('data').textContent=e}}
+    function countOf(value){if(Array.isArray(value))return value.length;if(value&&typeof value==='object')return Object.keys(value).length;return 0}
+    function render(){ $('tabs').innerHTML=keys.map(k=>`<button class="${k===active?'active':''}" onclick="active='${k}';render()">${k} (${countOf(snapshot[k])})</button>`).join(''); $('data').textContent=JSON.stringify(snapshot[active]||[],null,2) }
+    async function chat(core){const input=$(core?'coreText':'chatText'), out=$(core?'coreReply':'chatReply');try{const data=await api(core?'/api/core/chat':'/api/chat',{method:'POST',body:JSON.stringify({text:input.value,source:'web'})});out.textContent=data.reply+`\n\nexecution: ${data.execution_id}`;await refresh()}catch(e){out.textContent='错误：'+e.message}}
+    async function createTask(){try{const at=$('taskTrigger').value==='at'?Date.now()+10000:0;await api('/api/tasks',{method:'POST',body:JSON.stringify({label:$('taskLabel').value,blueprint_id:'alice.chat.default',trigger:{type:$('taskTrigger').value,at},remember_result:$('taskRemember').checked})});active='tasks';await refresh()}catch(e){alert(e.message)}}
+    async function buildComponent(){try{const data=await api('/api/components/build',{method:'POST',body:JSON.stringify({source_dir:$('sourceDir').value,activate:$('activate').checked})});$('buildResult').textContent=JSON.stringify(data,null,2);active='components';await refresh()}catch(e){$('buildResult').textContent='错误：'+e.message}}
+    function renderModelUsage(){const s=snapshot.model_runtime;if(!s){$('modelUsage').textContent='';return}const u=s.last_usage||{},pct=((s.cache_hit_rate||0)*100).toFixed(1);$('modelUsage').textContent=`本次 token：输入 ${u.prompt_tokens||0} / 输出 ${u.completion_tokens||0} / 推理 ${u.reasoning_tokens||0}；累计 DeepSeek 前缀缓存命中率 ${pct}%（请求 ${s.requests||0} 次）`}
+    async function loadModelSettings(){try{modelSettings=await api('/api/settings/model');$('modelBaseURL').value='https://api.deepseek.com';$('chatModel').value=modelSettings.chat_model||'deepseek-v4-flash';$('thinkingMode').value=modelSettings.thinking_mode||'enabled';$('reasoningEffort').value=modelSettings.reasoning_effort||'high';$('embeddingBaseURL').value=modelSettings.embedding_base_url||'';$('embeddingModel').value=modelSettings.embedding_model||'';$('modelAPIKey').placeholder=modelSettings.has_api_key?'已加密保存；留空保持不变':'输入 DeepSeek API Key';$('modelStatus').textContent=(modelSettings.embedding_model?'本地 Embedding：'+modelSettings.embedding_model+'；':'')+(modelSettings.has_api_key?'DeepSeek API Key 已加密保存':'尚未保存 DeepSeek API Key')}catch(e){$('modelStatus').textContent='读取失败：'+e.message}}
+    async function saveModelSettings(){try{const body={provider:'deepseek',base_url:'https://api.deepseek.com',chat_model:$('chatModel').value.trim(),thinking_mode:$('thinkingMode').value,reasoning_effort:$('reasoningEffort').value,embedding_base_url:$('embeddingBaseURL').value.trim(),embedding_model:$('embeddingModel').value.trim(),api_key:$('modelAPIKey').value,has_api_key:modelSettings.has_api_key&&$('modelAPIKey').value===''};modelSettings=await api('/api/settings/model',{method:'PUT',body:JSON.stringify(body)});$('modelAPIKey').value='';$('modelStatus').textContent='已保存并立即生效；待索引事实会在后台补齐向量';await loadModelSettings();await refresh()}catch(e){$('modelStatus').textContent='保存失败：'+e.message}}
+    async function testModelSettings(){try{$('modelStatus').textContent='正在测试对话与 Embedding 接口……';await api('/api/settings/model/test',{method:'POST',body:'{}'});$('modelStatus').textContent='连接正常'}catch(e){$('modelStatus').textContent='测试失败：'+e.message}}
+    loadModelSettings(); refresh(); setInterval(refresh,5000);
+  </script>
+</body>
+</html>

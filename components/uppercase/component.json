@@ -1,0 +1,12 @@
+{
+  "descriptor": {
+    "id": "text.uppercase",
+    "version": "1.0.0",
+    "description": "Example dynamically compiled component that uppercases a text payload.",
+    "kind": "transform",
+    "lifecycle": "per_call",
+    "input_schema": "alice.text.v1",
+    "output_schema": "alice.text.v1"
+  }
+}
+
